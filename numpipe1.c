@@ -34,9 +34,9 @@ MODULE_PARM_DESC(N, " Maximum N numbers in FIFO queue ");
 static int dev_number;
 static char tstr[32767] = {0};
 //static char* tstr_ptr;
-static int string_size = 32767;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
+static struct semaphore not_empty;
 static struct semaphore pipe_cap;
 static struct semaphore read_lock;
 static struct semaphore write_lock;
@@ -54,6 +54,7 @@ static struct file_operations fops = {
 static int __init numpipe1_init(void){
 //    init_rwsem(&pipe_lock);
 //    sema_init(&pipe_lock, 1);
+    sema_init(&not_empty, 0);
     sema_init(&pipe_cap, N);
     sema_init(&read_lock, 1);
     sema_init(&write_lock, 1);
@@ -101,10 +102,11 @@ static int dev_open(struct inode *inodep, struct file *filep){
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
     down_interruptible(&read_lock);
     //critical region semaphore aquired
+    down_interruptible(&not_empty);
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
     if((copy_to_user(buffer, tstr, sizeof(int)))==0){
-        printk(KERN_INFO "numpipe1 device sent the number:\n %s \n", buffer);
+        printk(KERN_INFO "numpipe1 device sent the number");
         up(&pipe_cap);
         up(&read_lock);
         return 0;
@@ -125,9 +127,11 @@ static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, lo
             //if(down_interruptible(&pipe_cap)){//pipe space is being used
     down_interruptible(&pipe_cap);//pipe space is being used
     if((copy_from_user(tstr, buffer, sizeof(int))) == 0){
-        printk(KERN_INFO "Wrote to numpipe1: %s", tstr);
+        up(&not_empty);
+        printk(KERN_INFO "Wrote to numpipe1");
             //}
     }else{
+        up(&pipe_cap);
         printk(KERN_INFO "failed write");
         //}
     }
