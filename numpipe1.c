@@ -103,8 +103,6 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     //critical region semaphore aquired
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
-//    char num[] = "\0\0\0\0";
-//    sscanf(tstr,"%s\n%s", tstr,num);
     string_size = strlen(tstr);
     if((copy_to_user(buffer, tstr, string_size))==0){
         printk(KERN_INFO "numpipe1 device sent the number:\n %s \n", buffer);
@@ -123,7 +121,6 @@ static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, lo
     down_interruptible(&write_lock);//semaphore not aquired recieving signal
         printk(KERN_INFO "Writing to pipe\n");
         //critical region semaphore aquired
-//        char num[] = "\0\0\0\0";
         //if(sscanf(buffer, "%s", num) >= 0){
             //printk(KERN_INFO "%s", &num);
             //if(down_interruptible(&pipe_cap)){//pipe space is being used
