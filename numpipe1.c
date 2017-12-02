@@ -33,9 +33,12 @@ static int N = 1;
 module_param(N, int, 0644);
 MODULE_PARM_DESC(N, " Maximum N numbers in FIFO queue ");
 static int dev_number;
-static char tstr[64] = {0};
-static int* queue;
+static char redr[sizeof(int)] = {0};
+static char wrtr[sizeof(int)] = {0};
+static char** queue;
+static int i;
 static int top = 0;
+static int count = 0;
 //static char* tstr_ptr;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
@@ -62,7 +65,10 @@ static int __init numpipe1_init(void){
     sema_init(&pipe_cap, N);
     sema_init(&read_lock, 1);
     sema_init(&write_lock, 1);
-    queue = kmalloc((N*sizeof(int)),GFP_KERNEL);
+    queue = kmalloc((N*sizeof(char*)),GFP_KERNEL);
+    for(i = 0; i < N; i++){
+        queue[i] = kmalloc(sizeof(int),GFP_KERNEL);
+    } 
     dev_number = register_chrdev(0, DEV_NAME, &fops);
     if(dev_number<0){
         printk(KERN_ALERT "Registering charachter device failed with %d\n", dev_number);
@@ -95,6 +101,9 @@ static void __exit numpipe1_exit(void){
     class_unregister(numpipe1Class);
     class_destroy(numpipe1Class);
     unregister_chrdev(dev_number, DEV_NAME);
+    for(i=N;i>=0;i--){
+        kfree(queue[i]);
+    }
     kfree(queue);
     printk(KERN_INFO "%s Exit: module unloaded", DEV_NAME);
 }
@@ -113,9 +122,13 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
     //TODO aquire tstr from 'top' of queue
-    if((copy_to_user(buffer, tstr, len))==0){
+    strcpy(redr, queue[top]);
+    if((copy_to_user(buffer, redr, len))==0){
         printk(KERN_INFO "numpipe1 device sent the number");
         //TODO'clean' queue location and increment 'top'
+        count--;
+        top++;
+        top = top%N;
         up(&pipe_cap);
         up(&read_lock);
         return len;
@@ -136,9 +149,11 @@ static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, lo
             //printk(KERN_INFO "%s", &num);
             //if(down_interruptible(&pipe_cap)){//pipe space is being used
     down_interruptible(&pipe_cap);//pipe space is being used
-    if((copy_from_user(tstr, buffer, len)) == 0){
+    if((copy_from_user(wrtr, buffer, len)) == 0){
         //string_size = len;
         //TODO push tstr into queue
+        strcpy(queue[(top+count)%N],wrtr);
+        count++;
         up(&not_empty);
         printk(KERN_INFO "Wrote to numpipe1");
         up(&write_lock);
