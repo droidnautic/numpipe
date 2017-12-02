@@ -34,7 +34,7 @@ MODULE_PARM_DESC(N, " Maximum N numbers in FIFO queue ");
 static int dev_number;
 static char tstr[32767] = {0};
 //static char* tstr_ptr;
-static int string_size;
+static int string_size = 32767;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
 static struct semaphore pipe_cap;
@@ -103,7 +103,6 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     //critical region semaphore aquired
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
-    string_size = strlen(tstr);
     if((copy_to_user(buffer, tstr, string_size))==0){
         printk(KERN_INFO "numpipe1 device sent the number:\n %s \n", buffer);
         up(&pipe_cap);
@@ -119,19 +118,20 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, loff_t *offset){
     //if(down_interruptible(&write_lock)){//semaphore not aquired recieving signal
     down_interruptible(&write_lock);//semaphore not aquired recieving signal
-        printk(KERN_INFO "Writing to pipe\n");
+    printk(KERN_INFO "Writing to pipe\n");
         //critical region semaphore aquired
         //if(sscanf(buffer, "%s", num) >= 0){
             //printk(KERN_INFO "%s", &num);
             //if(down_interruptible(&pipe_cap)){//pipe space is being used
-            down_interruptible(&pipe_cap);//pipe space is being used
-                sprintf(tstr, "%s", buffer);
-                printk(KERN_INFO "Wrote to numpipe1: %s", tstr);
+    down_interruptible(&pipe_cap);//pipe space is being used
+    if((copy_from_user(tstr, buffer, len)) == 0){
+        printk(KERN_INFO "Wrote to numpipe1: %s", tstr);
+        string_size = len;
             //}
-        //}else{
-            //printk(KERN_INFO "failed write number %d", num);
+    }else{
+        printk(KERN_INFO "failed write");
         //}
-    //}
+    }
     up(&write_lock);//semaphore released
     return 0;
 }
