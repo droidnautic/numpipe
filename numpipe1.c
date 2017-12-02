@@ -36,6 +36,7 @@ static char tstr[32767] = {0};
 //static char* tstr_ptr;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
+//static int string_size;
 static struct semaphore not_empty;
 static struct semaphore pipe_cap;
 static struct semaphore read_lock;
@@ -100,16 +101,17 @@ static int dev_open(struct inode *inodep, struct file *filep){
 }
 
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
+    len = sizeof(int);
     down_interruptible(&read_lock);
     //critical region semaphore aquired
     down_interruptible(&not_empty);
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
-    if((copy_to_user(buffer, tstr, sizeof(int)))==0){
+    if((copy_to_user(buffer, tstr, len))==0){
         printk(KERN_INFO "numpipe1 device sent the number");
         up(&pipe_cap);
         up(&read_lock);
-        return 0;
+        return len;
     }else{
         printk(KERN_INFO "failed to read numpipe1 device message");
         up(&read_lock);
@@ -118,6 +120,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 }
 
 static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, loff_t *offset){
+    len = sizeof(int);
     //if(down_interruptible(&write_lock)){//semaphore not aquired recieving signal
     down_interruptible(&write_lock);//semaphore not aquired recieving signal
     printk(KERN_INFO "Writing to pipe\n");
@@ -126,17 +129,20 @@ static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, lo
             //printk(KERN_INFO "%s", &num);
             //if(down_interruptible(&pipe_cap)){//pipe space is being used
     down_interruptible(&pipe_cap);//pipe space is being used
-    if((copy_from_user(tstr, buffer, sizeof(int))) == 0){
+    if((copy_from_user(tstr, buffer, len)) == 0){
+        //string_size = len;
         up(&not_empty);
         printk(KERN_INFO "Wrote to numpipe1");
+        up(&write_lock);
+        return len;
             //}
     }else{
         up(&pipe_cap);
         printk(KERN_INFO "failed write");
+        up(&write_lock);
+        return -EFAULT;
         //}
     }
-    up(&write_lock);//semaphore released
-    return 0;
 }
 
 static int dev_release(struct inode *inodep, struct file *filep){
