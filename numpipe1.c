@@ -9,6 +9,7 @@ controls reads and writes to avoid race conditions and failed pipes
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/semaphore.h>
 //#include <linux/rwsem.h>
@@ -32,7 +33,8 @@ static int N = 1;
 module_param(N, int, 0644);
 MODULE_PARM_DESC(N, " Maximum N numbers in FIFO queue ");
 static int dev_number;
-static char tstr[32767] = {0};
+static char tstr[64] = {0};
+static int* queue;
 //static char* tstr_ptr;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
@@ -59,6 +61,7 @@ static int __init numpipe1_init(void){
     sema_init(&pipe_cap, N);
     sema_init(&read_lock, 1);
     sema_init(&write_lock, 1);
+    queue = kmalloc(N,GFP_KERNEL);
     dev_number = register_chrdev(0, DEV_NAME, &fops);
     if(dev_number<0){
         printk(KERN_ALERT "Registering charachter device failed with %d\n", dev_number);
@@ -91,6 +94,7 @@ static void __exit numpipe1_exit(void){
     class_unregister(numpipe1Class);
     class_destroy(numpipe1Class);
     unregister_chrdev(dev_number, DEV_NAME);
+    kfree(queue);
     printk(KERN_INFO "%s Exit: module unloaded", DEV_NAME);
 }
 
