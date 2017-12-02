@@ -35,6 +35,7 @@ MODULE_PARM_DESC(N, " Maximum N numbers in FIFO queue ");
 static int dev_number;
 static char tstr[64] = {0};
 static int* queue;
+static int top = 0;
 //static char* tstr_ptr;
 //static struct semaphore pipe_lock;
 //static struct rw_semaphore pipe_lock;
@@ -61,7 +62,7 @@ static int __init numpipe1_init(void){
     sema_init(&pipe_cap, N);
     sema_init(&read_lock, 1);
     sema_init(&write_lock, 1);
-    queue = kmalloc(N,GFP_KERNEL);
+    queue = kmalloc((N*sizeof(int)),GFP_KERNEL);
     dev_number = register_chrdev(0, DEV_NAME, &fops);
     if(dev_number<0){
         printk(KERN_ALERT "Registering charachter device failed with %d\n", dev_number);
@@ -111,8 +112,10 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     down_interruptible(&not_empty);
     printk(KERN_INFO "process reading device%d: %s", dev_number, DEV_NAME);
     //tstr_ptr = tstr;
+    //TODO aquire tstr from 'top' of queue
     if((copy_to_user(buffer, tstr, len))==0){
         printk(KERN_INFO "numpipe1 device sent the number");
+        //TODO'clean' queue location and increment 'top'
         up(&pipe_cap);
         up(&read_lock);
         return len;
@@ -135,6 +138,7 @@ static ssize_t dev_write( struct file *filep, const char *buffer, size_t len, lo
     down_interruptible(&pipe_cap);//pipe space is being used
     if((copy_from_user(tstr, buffer, len)) == 0){
         //string_size = len;
+        //TODO push tstr into queue
         up(&not_empty);
         printk(KERN_INFO "Wrote to numpipe1");
         up(&write_lock);
